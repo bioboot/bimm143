@@ -1,0 +1,265 @@
+---
+title: "Bioinformatics Lecture 9"
+author: "Barry Grant"
+date: "5/1/2018"
+output: 
+  html_document:
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Hands-on with unsupervised learning analysis of cancer cells
+
+Lets read our input cancer cell data
+
+```{r}
+url <- "https://bioboot.github.io/bimm143_W18/class-material/WisconsinCancer.csv"
+
+# Complete the following code to input the data and store as wisc.df
+wisc.df <- read.csv(url)
+head(wisc.df)
+```
+
+How many M's do we have
+```{r}
+table(wisc.df$diagnosis)
+```
+
+
+Make a numeric classification vector
+
+```{r}
+diagnosis <- as.numeric(wisc.df$diagnosis == "M")
+table(diagnosis)
+```
+
+```{r}
+# Convert the features of the data: wisc.data
+wisc.data <- as.matrix( wisc.df[,3:ncol(wisc.df)] )
+rownames(wisc.data) <- wisc.df$id
+#head(wisc.data)
+wisc.data <- wisc.data[,-31]
+head(wisc.data)
+```
+
+## Exploratory data analysis
+
+> The functions dim(), length(), grep() and sum() may be useful for answering the first 3 questions above.
+
+**Q1**. How many observations are in this dataset?  
+
+```{r}
+nrow(wisc.data)
+```
+
+**Q2**. How many variables/features in the data are suffixed with _mean?
+
+```{r}
+# return things with the word `mean` in them
+grep("mean", colnames(wisc.data), value = TRUE)
+
+# return the position (ie index) of things with `mean` in them
+grep("mean", colnames(wisc.data), value = FALSE) # default
+
+# return things that DON'T have the word `mean` in them
+grep("mean", colnames(wisc.data), value = TRUE, invert = TRUE)
+
+length( grep("mean", colnames(wisc.data)) )
+```
+
+
+**Q3**. How many of the observations have a malignant diagnosis?
+
+```{r}
+sum(diagnosis)
+```
+
+
+# Section 2. Performing PCA
+
+Check if we need to `scale=TRUE` our data
+
+```{r}
+# Check column means and standard deviations
+colMeans(wisc.data)
+
+apply(wisc.data,2,sd)
+```
+
+Demo the minus use for extracting positions/cols/rows etc.
+
+```{r}
+x <- c("barry", "chris", "mary", "chandra")
+x[-c(1:3)]
+```
+
+Now do PCA with scalling
+
+```{r}
+# Perform PCA on wisc.data by completing the following code
+wisc.pr <- prcomp(wisc.data, scale=TRUE)
+```
+
+Inspect a summary of the results with the summary() function.
+
+```{r}
+summary(wisc.pr)
+
+```
+
+## Plot PCA results
+
+What is in our PCA output
+```{r}
+attributes(wisc.pr)
+```
+
+
+```{r}
+# Scatter plot observations by components 1 and 2
+plot( wisc.pr$x[,1], wisc.pr$x[,2], col = diagnosis+1,
+      pch=as.vector(wisc.df$diagnosis), 
+     xlab = "PC1", ylab = "PC2")
+```
+
+## Varience Explained: Scree-plot
+
+```{r}
+# Calculate variance of each component
+pr.var <- wisc.pr$sdev^2
+
+# Proportion of varance
+pve <- pr.var / sum(pr.var)
+
+# Plot variance explained for each principal component
+plot(pve, xlab = "Principal Component", 
+     ylab = "Proportion of Variance Explained", 
+     ylim = c(0, 1), type = "o")
+
+```
+
+plot as a barplot
+
+```{r}
+# Alternative scree plot of the same data, note data driven y-axis
+barplot(pve, ylab = "Precent of Variance Explained",
+     names.arg=paste0("PC",1:length(pve)), las=2, axes = FALSE)
+
+axis(2, at=pve, labels=round(pve,2)*100 )
+```
+
+Combined plots
+
+```{r}
+par(mfrow=c(1,2))
+
+plot(pve, xlab = "Principal Component", 
+     ylab = "Proportion of Variance Explained", 
+     ylim = c(0, 1), type = "o")
+
+plot(cumsum(pve), xlab = "Principal Component", 
+     ylab = "Cumulative Proportion of Variance Explained", 
+     ylim = c(0, 1), type = "o")
+
+```
+
+# Hierarchical clustering
+
+Lets do hierarchical clustering ;-)
+
+```{r}
+#?hclust
+#?dist
+
+# Scale the wisc.data data: data.scaled
+data.scaled <- scale(wisc.data)
+
+# Calculate distance matrix needed for hclust
+data.dist <- dist(data.scaled)
+
+# Clustering by hclust()
+wisc.hclust <- hclust(data.dist)
+                      
+```
+
+Plot our hclust model tree
+
+```{r}
+plot(wisc.hclust)
+abline(h=20, col="red")
+
+# Cut into 4 clusters/groups
+wisc.hclust.clusters <- cutree(wisc.hclust, h=20)
+
+# Or:
+# wisc.hclust.clusters <- cutree(wisc.hclust, k=4)
+```
+
+```{r}
+table(wisc.hclust.clusters)
+```
+
+
+How may M or 1 (cancer) and 0 (non-cancer) are in each cluster
+```{r}
+table(wisc.hclust.clusters, diagnosis)
+```
+
+
+
+## K-means
+
+```{r}
+wisc.km <- kmeans(scale(wisc.data), 2, nstart = 20)
+table(wisc.km$cluster, diagnosis)
+```
+
+
+
+Compare kmeans with hclust
+
+```{r}
+table(wisc.hclust.clusters, wisc.km$cluster)
+```
+
+
+
+## Cluster in PC space
+
+```{r}
+## Use the distance along the first 7 PCs for clustering i.e. wisc.pr$x[, 1:7]
+wisc.pr.hclust <- hclust( dist(wisc.pr$x[, 1:7]), method="ward.D2" )
+plot(wisc.pr.hclust)
+```
+
+
+Cut this hierarchical clustering model into 2 clusters and assign the results to `wisc.pr.hclust.clusters`.
+
+```{r}
+wisc.pr.hclust.clusters <- cutree(wisc.pr.hclust, k=2)
+```
+
+Using `table()`, compare the results from your new hierarchical clustering model with the actual diagnoses. 
+
+```{r}
+table(wisc.pr.hclust.clusters, diagnosis)
+```
+
+Lets plot with our clustering results
+
+```{r}
+# Scatter plot observations by components 1 and 2
+plot( wisc.pr$x[,1:2], col = wisc.pr.hclust.clusters,
+     xlab = "PC1", ylab = "PC2")
+```
+
+
+
+
+
+
+
+
