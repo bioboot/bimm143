@@ -27,3 +27,149 @@ names(precent) <- pdb.stats$Experimental.Method
 precent
 ```
 
+
+# Working with Bio3D
+
+Lets load the package
+
+```{r}
+#install.packages("bio3d")
+library(bio3d)
+```
+
+List the functions in the package and try an example...
+
+```{r}
+#lbio3d()
+# example(plot.bio3d)
+```
+
+Read a PDB file
+
+```{r}
+pdb <- read.pdb("1hsg")
+pdb
+```
+
+Select and write-out C-alpha atoms only!
+
+```{r}
+inds <- atom.select(pdb, "calpha")
+inds
+```
+
+check if we have what we want
+
+```{r}
+head(pdb$atom[inds$atom,])
+```
+
+Looks good so lets continue to trim our PDB and write it out
+
+```{r}
+ca.pdb <- trim.pdb(pdb, inds=inds)
+ca.pdb
+write.pdb(ca.pdb, file="calpha_only.pdb")
+```
+
+
+## PCA of Adenylate kinase structures
+
+Find the sequence
+
+```{r}
+aa <- get.seq("1ake_A")
+aa
+```
+
+
+Search the PDB database
+
+```{r, cache=TRUE}
+b <- blast.pdb(aa)
+```
+
+
+
+```{r}
+hits <- plot(b)
+```
+
+
+```{r}
+head(hits$pdb.id)
+```
+
+
+```{r, cache=TRUE}
+# Fetch PDBs
+files <- get.pdb(hits$pdb.id, path = "pdbs", split = TRUE, gzip = TRUE)
+```
+
+
+```{r}
+# Align structures
+pdbs <- pdbaln(files)
+
+# Vector containing PDB codes
+ids <- basename.pdb(pdbs$id)
+
+# Draw schematic alignment
+plot(pdbs, labels=ids)
+```
+
+
+
+
+
+## PCA
+
+```{r}
+# find invariant core
+core <- core.find(pdbs)
+
+# superimpose all structures to core(
+pdbs$xyz = pdbfit(pdbs, core)
+
+# Perform PCA
+pc.xray <- pca(pdbs)
+```
+
+
+```{r}
+# Calculate RMSD
+rd <- rmsd(pdbs)
+
+# Structure-based clustering 
+hc.rd <- hclust(dist(rd))
+grps.rd <- cutree(hc.rd, k=3)
+plot(pc.xray, 1:2, col="grey50", bg=grps.rd, pch=21, cex=1)
+
+```
+
+
+```{r}
+ # Visualize first principal component 
+pc1 <- mktrj(pc.xray, pc=1, file="pc_1.pdb")
+```
+
+Tryout the brand new interactive 3D view functions!
+
+```{r}
+rgl.img <-  view(pc1)
+
+rgl::rglwidget(elementId = "rgl.img")
+```
+
+
+View the fitted PDB
+
+```{r}
+rgl.pdbs <- view(pdbs)
+rgl::rglwidget(elementId = "rgl.pdbs")
+```
+
+
+
+
+
