@@ -1,0 +1,178 @@
+---
+title: "Bioinformatics Class7"
+author: "Barry Grant"
+date: "4/24/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Functions again
+
+Here I am going to revist our function from class 6
+
+```{r}
+source("http://tinyurl.com/rescale-R")
+ls()
+```
+
+Lets see if we can use this function
+
+```{r}
+rescale(1:10)
+```
+
+Looks good lets break it!
+
+```{r, eval=FALSE}
+rescale( c(1:10,"string") )
+```
+
+Lets try the new **rescale2()** function
+
+```{r}
+rescale2( c(1:10,"string") )
+```
+
+## Write a NA checking function
+
+Here we write a new function to check for NAs in two inputs
+
+```{r}
+x <- c( 1, 2, NA, 3, NA)
+y <- c(NA, 3, NA, 3,  4)
+```
+
+
+```{r}
+which( is.na(x) )
+
+```
+
+```{r}
+sum( is.na(x) )
+```
+
+Lets put this together with `x` and `y`
+
+```{r}
+is.na(x)
+is.na(y)
+```
+
+```{r}
+is.na(x) & is.na(y)
+```
+
+```{r}
+# Putting together!
+sum( is.na(x) & is.na(y) )
+
+```
+
+This is the both_na() function starting point
+
+```{r}
+both_na <- function(x, y) {
+  ## Check for NA elements in both input vectors 
+  sum( is.na(x) & is.na(y) )
+}
+
+```
+
+
+Test it 
+
+```{r}
+both_na(x,y)
+```
+
+and again
+
+```{r}
+x <-  c(NA, NA, NA)
+y1 <- c( 1, NA, NA)
+y2 <- c( 1, NA, NA, NA)
+
+both_na(x, y2)
+```
+
+Use stop() inside function to catch this case
+
+```{r, eval=FALSE}
+both_na2(x, y2)
+```
+
+Try the both_na3() function
+
+```{r}
+x <- c( 1, 2, NA, 3, NA)
+y <- c(NA, 3, NA, 3,  4)
+
+ans <- both_na3(x, y)
+```
+
+```{r}
+ans$number
+```
+
+## Anoter function example: gene intersection
+
+```{r}
+df1
+df2
+
+x <- df1$IDs
+y <- df2$IDs
+```
+
+```{r}
+x
+y
+```
+
+
+```{r}
+#intersect(x, y)
+
+x %in% y
+```
+
+```{r}
+y %in% x
+```
+
+
+Now we can access the genes we want with these 'indices'
+
+```{r}
+x[x %in% y]
+y[y %in% x]
+
+```
+
+Can make these columns of the same object with **cbind()**
+
+```{r}
+cbind( x[x %in% y], y[y %in% x])
+```
+
+```{r}
+# Correct but yucky format for 2nd colnames
+gene_intersect2(df1, df2)
+
+```
+
+Lets try the merge() function for this job
+
+```{r}
+merge(df1, df2, by="IDs")
+
+```
+
+
+
+
+
