@@ -128,6 +128,7 @@ $(document).ready(function () {
 <div id="setup-for-drug-docking" class="section level2">
 <h2>Setup for drug docking</h2>
 <pre class="r"><code>library(bio3d)</code></pre>
+<pre><code>## Warning: package 'bio3d' was built under R version 3.4.4</code></pre>
 <pre class="r"><code>file.name &lt;- get.pdb(&quot;1hsg&quot;)</code></pre>
 <pre><code>## Warning in get.pdb(&quot;1hsg&quot;): ./1hsg.pdb exists. Skipping download</code></pre>
 <pre class="r"><code>hiv &lt;- read.pdb(file.name)</code></pre>
@@ -137,6 +138,30 @@ ligand &lt;- trim.pdb(hiv, &quot;ligand&quot;)</code></pre>
 <p>Write out these new PDB files so we can use them for docking.</p>
 <pre class="r"><code>write.pdb(ligand, &quot;1hsg_ligand.pdb&quot;)
 write.pdb(protein, &quot;1hsg_protein.pdb&quot;)</code></pre>
+</div>
+<div id="process-docking-results-for-vmd-display" class="section level2">
+<h2>Process docking results for VMD display</h2>
+<pre class="r"><code>library(bio3d)
+
+res &lt;- read.pdb(&quot;all.pdbqt&quot;, multi=TRUE)
+write.pdb(res, &quot;results.pdb&quot;)</code></pre>
+</div>
+<div id="rmsd-root-mean-square-distance-of-our-results-res-to-merck-compound" class="section level2">
+<h2>RMSD (root mean square distance) of our results <code>res</code> to Merck compound</h2>
+<p>Select non-hydrogen atoms from our docking result file</p>
+<pre class="r"><code>inds.res &lt;- atom.select(res, &quot;noh&quot;)
+inds.res</code></pre>
+<pre><code>## 
+##  Call:  atom.select.pdb(pdb = res, string = &quot;noh&quot;)
+## 
+##    Atom Indices#: 45  ($atom)
+##    XYZ  Indices#: 135  ($xyz)
+## 
+## + attr: atom, xyz, call</code></pre>
+<pre class="r"><code>#res$xyz[,inds.res$xyz]
+rmsd(ligand, res$xyz[,inds.res$xyz])</code></pre>
+<pre><code>##  [1]  7.073  8.765  9.086  7.101  9.798  6.967  7.556  7.219  7.362  9.201
+## [11]  7.295  7.213 10.257 10.840</code></pre>
 </div>
 
 

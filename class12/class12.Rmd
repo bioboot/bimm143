@@ -34,5 +34,36 @@ write.pdb(protein, "1hsg_protein.pdb")
 ```
 
 
+## Process docking results for VMD display
+
+```{r}
+library(bio3d)
+
+res <- read.pdb("all.pdbqt", multi=TRUE)
+write.pdb(res, "results.pdb")
+```
+
+## RMSD (root mean square distance) of our results `res` to Merck compound 
+
+Select non-hydrogen atoms from our docking result file
+
+```{r}
+inds.res <- atom.select(res, "noh")
+inds.res
+
+```
+
+```{r}
+#res$xyz[,inds.res$xyz]
+rmsd(ligand, res$xyz[,inds.res$xyz])
+```
+
+
+
+
+
+
+
+
 
 
