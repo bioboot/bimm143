@@ -1,0 +1,38 @@
+---
+title: "Bioinformatics Class12"
+author: "Barry Grant"
+date: "5/10/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setup for drug docking
+
+```{r}
+library(bio3d)
+```
+
+```{r}
+file.name <- get.pdb("1hsg")
+hiv <- read.pdb(file.name)
+```
+
+Select out protein only and ligand only
+
+```{r}
+protein <- trim.pdb(hiv, "protein")
+ligand <- trim.pdb(hiv, "ligand")
+```
+
+Write out these new PDB files so we can use them for docking.
+```{r}
+write.pdb(ligand, "1hsg_ligand.pdb")
+write.pdb(protein, "1hsg_protein.pdb")
+```
+
+
+
+
