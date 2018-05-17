@@ -1,0 +1,299 @@
+---
+title: "Bioinformatics Class14"
+author: "Barry Grant"
+date: "5/17/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Transcriptomics and the analysis of RNA-Seq data
+
+See: https://bioboot.github.io/bimm143_S18/class-material/lecture14-BIMM143_W18-lab/
+
+Import countData and colData into R
+
+```{r}
+counts <- read.csv("data/airway_scaledcounts.csv", stringsAsFactors = FALSE)
+metadata <-  read.csv("data/airway_metadata.csv", stringsAsFactors = FALSE)
+```
+
+```{r}
+head(counts)
+```
+
+```{r}
+head(metadata)
+```
+
+We can see that the control samples are SRR1039508, SRR1039512, SRR1039516, and SRR1039520. This bit of code will first find the sample id for those labeled control. Then calculate the mean counts per gene across these samples:
+
+```{r}
+control <- metadata[metadata[,"dex"]=="control",]
+control.mean <- rowSums( counts[ ,control$id] ) / length(control$id) 
+names(control.mean) <- counts$ensgene
+```
+
+```{r}
+head(control.mean)
+```
+
+
+Now do the same thing for our drug treated samples
+
+```{r}
+treated <- metadata[metadata[,"dex"]=="treated",]
+treated.mean <- rowSums( counts[ ,treated$id] ) / length(treated$id) 
+names(treated.mean) <- counts$ensgene
+head(treated.mean)
+```
+
+
+```{r}
+meancounts <- data.frame(control.mean, treated.mean)
+colSums(meancounts)
+```
+
+### Lets plot our gene wise data
+
+```{r}
+plot(control.mean, treated.mean)
+```
+
+
+```{r}
+plot(control.mean, treated.mean, log="xy")
+```
+
+We can find candidate differentially expressed genes by looking for genes with a large change between control and dex-treated samples. We usually look at the log2 of the fold change, because this has better mathematical properties.
+
+Here we calculate log2foldchange, add it to our meancounts data.frame
+
+```{r}
+meancounts$log2fc <- log2(meancounts[,"treated.mean"]/meancounts[,"control.mean"])
+head(meancounts)
+```
+
+Remove zero count genes
+
+```{r}
+#zero.vals <- which(meancounts[,1:2]==0, arr.ind=TRUE)
+x <- matrix(c(1:10), ncol=2, byrow=T)
+x[5,2] <- 0
+x
+```
+
+```{r}
+which(x==0, arr.ind=TRUE)
+```
+
+
+
+
+
+```{r}
+zero.vals <- which(meancounts[,1:2]==0, arr.ind=TRUE)
+head(zero.vals)
+to.rm <- unique(zero.vals[,1])
+mycounts <- meancounts[-to.rm,]
+head(mycounts)
+```
+
+A common threshold used for calling something differentially expressed is a log2(FoldChange) of greater than 2 or less than -2. Let’s filter the dataset both ways to see how many genes are up or down-regulated.
+
+```{r}
+up.ind <- mycounts$log2fc > 2
+down.ind <- mycounts$log2fc < (-2)
+```
+
+```{r}
+paste("Number of UP genes:", sum(up.ind))
+paste("Number of DOWN genes:", sum(down.ind))
+
+```
+
+## Adding annotation data
+
+```{r}
+anno <- read.csv("data/annotables_grch38.csv")
+head(anno)
+```
+
+> **Q6**. From consulting the help page for the merge() function can you set the by.x and by.y arguments appropriately to annotate our mycounts data.frame with all the available annotation data in your anno data.frame?
+
+```{r}
+results <- merge(mycounts, anno, by.x="row.names", by.y="ensgene")
+head(results)
+
+```
+
+
+## Lets try Bioconductor’s annotation packages
+
+```{r}
+#biocLite("AnnotationDbi")
+library("AnnotationDbi")
+library("org.Hs.eg.db")
+```
+
+```{r}
+columns(org.Hs.eg.db)
+```
+
+```{r}
+mycounts$symbol <- mapIds(org.Hs.eg.db,
+                     keys=row.names(mycounts),
+                     column="SYMBOL",
+                     keytype="ENSEMBL",
+                     multiVals="first")
+```
+
+```{r}
+head(mycounts)
+```
+
+# DESeq2 analysis
+
+Load the package
+
+```{r}
+library(DESeq2)
+```
+
+```{r}
+dds <- DESeqDataSetFromMatrix(countData=counts, 
+                              colData=metadata, 
+                              design=~dex, 
+                              tidy=TRUE)
+dds
+```
+
+```{r}
+#results(dds)
+```
+
+```{r}
+dds <- DESeq(dds)
+```
+
+Getting results
+
+Since we’ve got a fairly simple design (single factor, two groups, treated versus control), we can get results out of the object simply by calling the results() function on the DESeqDataSet that has been run through the pipeline. The help page for ?results and the vignette both have extensive documentation about how to pull out the results for more complicated models (multi-factor experiments, specific contrasts, interaction terms, time courses, etc.).
+
+```{r}
+res <- results(dds)
+res
+
+```
+
+
+```{r}
+summary(res)
+```
+
+We can order our results table by the smallest p value:
+
+```{r}
+
+x <- c(1,6,3,2) 
+#sort(x)
+x[ order(x) ]
+```
+
+```{r}
+resOrdered <- res[order(res$pvalue),]
+head(resOrdered)
+```
+
+
+
+The results function contains a number of arguments to customize the results table. By default the argument alpha is set to 0.1. If the adjusted p value cutoff will be a value other than 0.1, alpha should be set to that value:
+
+```{r}
+res05 <- results(dds, alpha=0.05)
+summary(res05)
+
+```
+
+
+
+```{r}
+resSig05 <- subset(as.data.frame(res), padj < 0.05)
+nrow(resSig05)
+```
+
+> **Q9.**  How many are significant with an adjusted p-value < 0.05? How about 0.01? Save this last set of results as resSig01.
+
+```{r}
+resSig01 <- subset(as.data.frame(res), padj < 0.01)
+nrow(resSig01)
+```
+
+> **Q10.** Using either the previously generated anno object (annotations from the file annotables_grch38.csv file) or the mapIds() function (from the AnnotationDbi package) add annotation to your res01 results data.frame.
+
+```{r}
+library("AnnotationDbi")
+library("org.Hs.eg.db")
+columns(org.Hs.eg.db)
+```
+
+```{r}
+head(resSig01)
+```
+
+```{r}
+resSig01$symbol <- mapIds(org.Hs.eg.db,
+                     keys=row.names(resSig01),
+                     column="SYMBOL",
+                     keytype="ENSEMBL",
+                     multiVals="first")
+```
+
+```{r}
+head(resSig01)
+```
+
+
+Write out ordered results
+
+```{r}
+ord <- order( resSig01$padj )
+write.csv(resSig01[ord,], "signif01_results.csv")
+```
+```{r}
+#View(resSig01[ord,])
+```
+
+Some nice plots
+
+```{r}
+res$sig <- res$padj<0.05
+
+# How many of each?
+table(res$sig)
+```
+
+```{r}
+library(ggplot2)
+ggplot(as.data.frame(res), aes(log2FoldChange, -1*log10(pvalue), col=sig)) + 
+    geom_point() + 
+    ggtitle("Volcano plot")
+```
+
+Etc. See Lab page sheet
+
+
+
+
+
+
+
+
+
+
+
+
+
+
