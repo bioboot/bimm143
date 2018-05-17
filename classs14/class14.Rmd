@@ -2,7 +2,9 @@
 title: "Bioinformatics Class14"
 author: "Barry Grant"
 date: "5/17/2018"
-output: html_document
+output: 
+  html_document: 
+    keep_md: yes
 ---
 
 ```{r setup, include=FALSE}
@@ -282,7 +284,7 @@ ggplot(as.data.frame(res), aes(log2FoldChange, -1*log10(pvalue), col=sig)) +
     ggtitle("Volcano plot")
 ```
 
-Etc. See Lab page sheet
+Etc. See Lab page sheet for [more examples](https://bioboot.github.io/bimm143_S18/class-material/lecture14-BIMM143_W18-lab/).
 
 
 
