@@ -2,7 +2,9 @@
 title: "Bioinformatics Class 15"
 author: "Barry Grant"
 date: "5/22/2018"
-output: html_document
+output: 
+  html_document: 
+    keep_md: yes
 ---
 
 ```{r setup, include=FALSE}
@@ -13,7 +15,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 Import data files for DESeq analysis (countData and colData).
 
-```{r}
+```{r, message=FALSE}
 library(DESeq2)
 ```
 
@@ -52,14 +54,15 @@ head(countData)
 Setup the DESeqDataSet object required for the DESeq() function and then run the DESeq pipeline. This is again similar to our last days hands-on session.
 
 ```{r}
-dds = DESeqDataSetFromMatrix(countData=countData,
+dds <- DESeqDataSetFromMatrix(countData=countData,
                              colData=colData,
                              design=~condition)
 ```
 
+Now we can run our DE analysis
 
 ```{r}
-dds = DESeq(dds)
+dds <- DESeq(dds)
 ```
 
 ```{r}
@@ -71,27 +74,169 @@ dim(countData)
 dds
 ```
 
-Next, get results for the HoxA1 knockdown versus control siRNA (remember we labeled these as “hoxa1_kd” and “control_sirna” in our original colData metaFile input to DESeq, you can check this above and by running resultsNames(dds) command).
+## Extracting our results table
 
 ```{r}
-res = results(dds, contrast=c("condition", "hoxa1_kd", "control_sirna"))
+res <- results(dds)
+summary(res)
 ```
 
-
+Too many genes here so lets increase our thresholds of log2 fold change and decrease our FDR *p* value.
+ 
 ```{r}
-res
+resSig <- results(dds, lfcThreshold=2, alpha=0.05)
+summary(resSig)
 ```
+
 
 
 Let’s reorder these results by p-value and call summary() on the results object to get a sense of how many genes are up or down-regulated at the default FDR of 0.1.
 
 
 ```{r}
-res = res[order(res$pvalue),]
+res <- res[order(res$pvalue),]
 summary(res)
 ```
 
+
+
+
+### Running DESeq
+Once we have our `DESeqDataSet` setup we can run differential expression analtsis with *DESeq*:
+
+```{r}
+#dds <- DESeq(dds)
+```
+
+A new `DESeqDataSet` is returned that contains all the results (and the input `DESeqDataSet` parameters) within it.  
+
+Extracting out the tables of results we actually want from this object can be a bit tricky. The next section describes one common way to do this. 
+
+### Extracting our results table
+Calling the *DESeq* packages **results()** function on our `DESeqDataSet` without any arguments will extract the estimated log2 fold changes and p values like so:
+
+```{r}
+#res <- results(dds)
+res
+```
+
+The returned `res` object is not a standard R data.frame but one that carries extra meatadata on the meaning of the columns:
+
+```{r}
+mcols(res, use.names = TRUE)
+```
+
+The column `log2FoldChange` is the effect size estimate. It tells us how much the gene's expression seems to have changed due to treatment with dexamethasone in comparison to untreated samples.  This value is reported on a logarithmic scale to base 2: for example, a log2 fold change of 1.5 means that the gene's expression is increased by a multiplicative factor of \(2^{1.5} \approx 2.82\).
+
+*DESeq2* performs for each gene a *hypothesis test* to see whether evidence is sufficient to decide against the *null hypothesis* that there is zero effect of the treatment on the gene and that the observed difference between treatment and
+control was merely caused by experimental variability (i.e., the type of variability that you can expect between different
+samples in the same treatment group). As usual in statistics, the result of this test is reported as a *p* value, and it is found in the column `pvalue`. Remember that a *p* value indicates the probability that a fold change as strong as the observed one, or even stronger, would be seen under the situation described by the null hypothesis.  
+
+We can also summarize the results with the *DESeq2* specific version of the **summary()** function. This will report some additional useful information: 
+
+```{r}
+summary(res)
+```
+
+Note that there are many many genes with differential expression reported above. Let's therefore be more strict about which set of genes are considered 'significant'. There are two main ways we can do this:
+
+* Lower the false discovery rate threshold (i.e. the threshold on the adjusted p-value (`padj`) in the results table)
+* Raise the log2 fold change threshold from 0 to a higher value.
+
+
+
+> **Q.** In the summary of our results printed above (and by default) the FDR level is set to 10% (i.e. adjusted p-value < 0.1) and the log2 fold change threshold is set to 0. Use the `alpha` and `lfcThreshold` input arguments to the **results()** function to change these to an FDR of 5% and a log2 fold change threshold of 2. Then use the **summary()** function to find out how many genes are up and down at these thresholds.  
+
+
+
+```{r, echo=FALSE}
+## ***Hide code***
+# Set p-adjust to 0.05 and LCF to 2 #and tidy=TRUE)
+
+#res = results(dds, lfcThreshold=2, alpha=0.05)
+#summary(res)
+## ***Hide code***
+res <- results(dds)
+summary(res)
+```
+
+You could also use the ever useful **table()** function on your output of the **results()** function like so:
+
+```{r}
+table(resSig$padj < 0.05)
+```
+
+```{r}
+table(resSig$log2FoldChange > 2)
+
+```
+
+Then combining to determine the number of genes that meet both the *p* value and log2 fold change thresholds (*UP* genes: 99; and *DOWN* genes: 134): 
+
+```{r}
+table( resSig$padj < 0.05, resSig$log2FoldChange > 2)
+```
+
+
+> **Side-Note:** In high-throughput biology, we are careful to not use the *p* values directly as evidence against the null, but to correct for **multiple testing**.  
+>
+> What would happen if we were to simply threshold the *p* values at a low value, say 0.05? There are `r sum(res$pvalue < .05, na.rm=TRUE)` genes with a *p* value below 0.05 among the `r sum(!is.na(res$pvalue))` genes for which the test succeeded in reporting a *p* value:
+
+```{r}
+table(res$pvalue < 0.05)
+```
+
+> *DESeq2* uses the Benjamini-Hochberg (BH) adjustment as implemented in the base R **p.adjust()** function; in brief, this method calculates for each gene an adjusted *p* value that answers the following question: if one called significant all genes with an adjusted *p* value less than or equal to this gene's adjusted *p* value threshold, what would be the fraction of false positives (the *false discovery rate*, FDR) among them, in the sense of the calculation outlined above? These values, called the BH-adjusted *p* values, are given in the column `padj` of the `res` object.  
+>
+> The FDR is a useful statistic for many high-throughput experiments, as we are often interested in reporting or focusing on a set of interesting genes, and we would like to put an upper bound on the percent of false positives in this set.  
+>
+> Hence, if we consider a fraction of 5% false positives acceptable, we can consider all genes with an adjusted *p* value below 5% = 0.05 as significant. How many such genes are there?  
+
+```{r}
+table(res$padj < 0.05)
+```
+
+
+We can now subset the results table to extract the genes with adjusted *p* value less than 0.05 and then sort them by their log2 fold change estimate to get the significant genes with the strongest down-regulation:
+
+```{r}
+# Make a new results object 'resSig' with only significant genes
+resSig <- subset(res, padj < 0.05)
+
+# Print the first 10 strongest DOWN genes
+ord.down <- order(resSig$log2FoldChange)
+head(resSig[ ord.down, ], 10)
+```
+
+> **Q.** Do the same as above but print out the top 10 strongest up-regulated genes. HINT: see the help for the **order()** function to see how to return the decreasing ordered indices you will want for accesing your `resSig` result.  
+
+```{r}
+# Print the first 10 strongest YP genes
+ord.up <- order(resSig$log2FoldChange, decreasing = TRUE)
+head(resSig[ ord.up, ], 10)
+```
+
+
+
+
+## Annotating our genes and mapping to Entrez IDs
+
+```{r}
+#res = res[order(res$pvalue),]
+#summary(res)
+
+#resSig = resSig[order(resSig$pvalue),]
+#summary(resSig)
+
+#res = (resSig[order(resSig$pvalue),])
+```
+
 Since we mapped and counted against the Ensembl annotation, our results only have information about Ensembl gene IDs. However, our pathway analysis downstream will use KEGG pathways, and genes in KEGG pathways are annotated with Entrez gene IDs. So lets add them as we did the last day.
+
+```{r}
+#biocLite("AnnotationDbi")
+#biocLite("org.Hs.eg.db")
+```
 
 ```{r}
 library("AnnotationDbi")
@@ -121,6 +266,7 @@ res$name =   mapIds(org.Hs.eg.db,
 
 head(res, 10)
 ```
+
 Great, this is looking good so far. Now lets see how pathway analysis can help us make further sense out of this ranked list of differentially expressed genes.
 
 
@@ -153,6 +299,11 @@ head(kegg.sets.hs, 3)
 
 The main `gage()` function requires a named vector of fold changes, where the names of the values are the Entrez gene IDs.
 
+```{r}
+#foldchanges = resSig$log2FoldChange
+#names(foldchanges) = resSig$entrez
+#head(foldchanges)
+```
 
 ```{r}
 foldchanges = res$log2FoldChange
@@ -174,7 +325,7 @@ attributes(keggres)
 ```
 
 ```{r}
-head(keggres$greater)
+head(keggres$less)
 ```
 
 Each keggres$greater and keggres$less object is data matrix with gene sets as rows sorted by p-value. Lets look at both up (greater), down (less), and statistics by calling head() with the lapply() function. As always if you want to find out more about a particular function or its return values use the R help system (e.g. ?gage or ?lapply).
@@ -237,7 +388,8 @@ gobpsets = go.sets.hs[go.subs.hs$BP]
 
 gobpres = gage(foldchanges, gsets=gobpsets, same.dir=TRUE)
 
-lapply(gobpres, head)
+head(gobpres$less, 10)
+#lapply(gobpres, head)
 ```
 
 # Reactome Pathway Analysis Online
@@ -252,6 +404,55 @@ print(paste("Total number of significant genes:", length(sig_genes)))
 
 write.table(sig_genes, file="significant_genes.txt", 
             row.names=FALSE, col.names=FALSE, quote=FALSE)
+```
+
+
+
+## Bounus: Gene clustering, heatmaps and PCA
+
+Many statistical methods for analysis of multidimensional data, for example *clustering* and *principal components analysis* (PCA), work best for data that generally has the same range of variance at different ranges of the mean values.  
+
+However, for counts from RNA-seq the expected variance grows with the mean. For example, if one performs PCA or clustering directly on a matrix of counts then the results will be heavely influenced by the genes with the highest counts (because they show the largest absolute differences between samples).  To address this problem the *DESeq2* package offers the **vst()** function (that stands for Variance Stabilizing Transformation) that stabilizes the variance of count data across different mean values. We will use **vst()** here as input for our clustering.
+
+```{r}
+vsd <- vst(dds, blind = FALSE)
+```
+
+Since gene clustering is only really relevant for genes that actually carry a signal, one usually would only cluster a subset of the most highly variable genes. Here, for demonstration purposes we select the 20 genes with the highest variance across samples.
+
+
+```{r}
+library("genefilter")
+#row.variance <- apply(assay(vsd), 1, var)
+row.variance <- rowVars(assay(vsd))
+ord.variance <- order( row.variance, decreasing = TRUE) 
+
+# Focus on top 20 most variable genes for demo purposes
+mat  <- assay(vsd)[ ord.variance[1:20], ]
+```
+
+The heatmap becomes more interesting if we do not look at absolute expression strength but rather at the amount by which each gene deviates in a specific sample from the gene’s average across all samples. To do this we center each genes’ values across samples by subtracting their mean values, and then plot the heatmap (figure below). 
+
+```{r}
+library(pheatmap)
+mat.center  <- mat - rowMeans(mat)
+pheatmap(mat.center)
+```
+
+
+> **Side-note:** We can do PCA with our `vsd` object.
+
+```{r plotPCA}
+pcaData <- plotPCA(vsd, intgroup="condition", returnData = TRUE)
+pcaData
+
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(pcaData, aes(x = PC1, y = PC2, color = condition) ) +
+  geom_point(size =3) 
 ```
 
 
