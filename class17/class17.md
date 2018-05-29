@@ -1,7 +1,7 @@
 Bioinformatics Class17
 ================
 
-Network Analysis Part II
+Network Analysis (Part II)
 ------------------------
 
 Here we look at metagenomics co-occurrence networks. We will use R and Cytoscape. This will include the `igraph` and `RCy3` packages.
